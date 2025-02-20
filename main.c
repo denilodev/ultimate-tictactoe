@@ -36,12 +36,21 @@ const int CONSOLE_HEIGHT = 20;
 
 // Scene variables
 enum scene {
-    MENU,
-    LOCAL_GAME,
-    MULTI_GAME,
-    EXIT_GAME
+    SCENE_MENU,
+    SCENE_LOCAL_GAME,
+    SCENE_MULTI_GAME
 };
-enum scene actual_scene = MENU;
+enum scene actual_scene = SCENE_MENU;
+
+enum popup {
+    POPUP_EXIT_PROGRAM,
+    POPUP_HOST_OR_CONNECT,
+    POPUP_LEFT_GAME,
+
+    POPUP_COUNT
+};
+char *popup_txt[POPUP_COUNT];
+char popup_len[POPUP_COUNT];
 
 // Menu variables
 enum menu_options {
@@ -60,8 +69,9 @@ char tile[MAX_ROWS * MAX_COLS];
 // Functions
 void resize_console(int, int);
 void clear_screen();
+void popup(enum popup);
+void menu();
 void draw_menu();
-void ask_if_want_exit();
 void game(int, int);
 void draw_game(int, int);
 
@@ -85,7 +95,7 @@ int main()
     // Clear the screen
     clear_screen();
 
-    // Make cursor invisible
+    // Makes cursor invisible
     cursor_info.bVisible = FALSE;
     SetConsoleCursorInfo(console_handle, &cursor_info);
 
@@ -102,49 +112,20 @@ int main()
     option_txt[EXIT] = "Exit the game";
     for (int i = 0; i < OPTIONS_COUNT; i++) option_len[i] = strlen(option_txt[i]);
 
+    popup_txt[POPUP_EXIT_PROGRAM] = "Sure want to quit?";
+    popup_txt[POPUP_HOST_OR_CONNECT] = "Want to host or connect a game?";
+    popup_txt[POPUP_LEFT_GAME] = "Sure want to left the game?";
+    for (int i = 0; i < POPUP_COUNT; i++) popup_len[i] = strlen(popup_txt[i]);
+
     // Main loop
     while (running)
     {
         switch (actual_scene)
         {
-            case MENU:
-                draw_menu(arrow);
-                //game(8, 8);
-                input = getch();
-                    switch (input)
-                    {
-                        case UP:
-                            if (arrow > 0) arrow--;
-                            else arrow = OPTIONS_COUNT-1;
-                            break;
-                        case DOWN:                       
-                            if (arrow < OPTIONS_COUNT-1) arrow++;
-                            else arrow = 0;
-                            break;
-                        case LEFT:
-                            break;
-                        case RIGHT:
-                            break;
-                        case SELECT:
-                            switch (arrow)
-                            {
-                                case PLAY_LOCAL:
-                                    actual_scene = PLAY_LOCAL;
-                                    break;
-                                case PLAY_MULTI:
-                                    actual_scene = PLAY_LOCAL;
-                                    break;
-                                case EXIT:
-                                    running = FALSE;
-                                    break;
-                            }
-                            break;
-                        case 'c':
-                            
-                            break;
-                    }               
+            case SCENE_MENU:
+                    menu();            
                 break;
-            case LOCAL_GAME:
+            case SCENE_LOCAL_GAME:
                     game(MIN_ROWS, MIN_COLS);
                     // Show TTT
                     // TTT logic
@@ -156,7 +137,7 @@ int main()
                                 // Set MENU
                                 // Re-loop
                 break;
-            case MULTI_GAME:
+            case SCENE_MULTI_GAME:
                     // Ask if host or connect game
                         // If host
                             // Build server socket
@@ -188,9 +169,6 @@ int main()
                                         // If go back
                                             // Set MENU
                                             // Re-loop
-                break;
-            case EXIT_GAME:
-                ask_if_want_exit();
                 break;
             default:
                 return 1;
@@ -228,6 +206,97 @@ void clear_screen()
     {
         WriteConsoleOutputCharacter(console_handle, clean_line, CONSOLE_WIDTH, coord(0, i), &characters);
     }
+}
+
+void popup(enum popup question)
+{
+    clear_screen();
+    int temporary_arrow = FALSE;
+    char *no_txt = "No";
+    char no_len = strlen(no_txt);
+    char *yes_txt = "Yes";
+    char yes_len = strlen(yes_txt);
+    char *host_txt = "Host";
+    char host_len = strlen(host_txt);
+    char *connect_txt = "Connect";
+    char connect_len = strlen(connect_txt);
+
+    switch (question)
+    {
+        case POPUP_EXIT_PROGRAM:
+            while (running)
+            {
+                // Print question
+                WriteConsoleOutputCharacter(console_handle, popup_txt[question], popup_len[question], coord(0, 0), &characters);
+                // Print option 0 (no)
+                WriteConsoleOutputCharacter(console_handle, arrow_text[!temporary_arrow], arrow_len[!temporary_arrow], coord(0, 1), &characters);
+                WriteConsoleOutputCharacter(console_handle, no_txt, no_len, coord(arrow_len[temporary_arrow], 1), &characters);
+                // Print option 1 (yes)
+                WriteConsoleOutputCharacter(console_handle, arrow_text[temporary_arrow], arrow_len[temporary_arrow], coord(0, 2), &characters);
+                WriteConsoleOutputCharacter(console_handle, yes_txt, yes_len, coord(arrow_len[temporary_arrow], 2), &characters);
+                // Input logic
+                input = getch();
+                switch (input)
+                {
+                    case UP:
+                    case DOWN:
+                        temporary_arrow = !temporary_arrow;
+                        break;
+                    case SELECT:
+                        if (temporary_arrow == TRUE)
+                        {
+                            running = FALSE;
+                            return;
+                        }
+                        else
+                        {
+                            clear_screen();
+                            return;
+                        }
+                        break;
+                } 
+            }
+            break;
+        case POPUP_HOST_OR_CONNECT:
+            return;
+            break;
+        case POPUP_LEFT_GAME:
+            return;
+            break;
+    }
+}
+
+void menu()
+{
+    draw_menu();
+    input = getch();
+    switch (input)
+    {
+        case UP:
+            if (arrow > 0) arrow--;
+            else arrow = OPTIONS_COUNT-1;
+            break;
+        case DOWN:
+            if (arrow < OPTIONS_COUNT-1) arrow++;
+            else arrow = 0;
+            break;
+        case SELECT:
+            switch (arrow)
+            {
+                case PLAY_LOCAL:
+                    clear_screen();
+                    actual_scene = SCENE_LOCAL_GAME;
+                    break;
+                case PLAY_MULTI:
+                    clear_screen();
+                    actual_scene = SCENE_MULTI_GAME;
+                    break;
+                case EXIT:
+                    popup(POPUP_EXIT_PROGRAM);
+                    break;
+            }
+            break;
+    }   
 }
 
 void draw_menu()
@@ -270,14 +339,18 @@ void game(int grid_row_count, int grid_col_count)
     // Clean input
     input = 0;
 
+    // Makes cursor visible
+    cursor_info.bVisible = TRUE;
+    SetConsoleCursorInfo(console_handle, &cursor_info);
+    
     draw_game(grid_rows_total_count, grid_cols_total_count);
+
+    SetConsoleCursorPosition(console_handle, coord(1, 0));
     while (running)
     {
         input = getch();
         switch (input)
         {
-        case 'q':
-            return;
         case UP:
             if (tile_selected.Y > 0) tile_selected.Y--;
             break;
@@ -294,8 +367,8 @@ void game(int grid_row_count, int grid_col_count)
         default:
             break;
         }
-        int x = 1 + (tile_selected.X * 4);
-        int y = 1 + (tile_selected.Y * 2);
+        int x = (tile_selected.X * 4) + 1;
+        int y = (tile_selected.Y * 2);
         SetConsoleCursorPosition(console_handle, coord(x, y));
     }
 }
