@@ -30,6 +30,7 @@ CONSOLE_FONT_INFO font_info;
 CONSOLE_SCREEN_BUFFER_INFO console_info;
 DWORD characters;
 DWORD style;
+const char *space = " ";
 const int CONSOLE_WIDTH = 40;
 const int CONSOLE_HEIGHT = 20;
 
@@ -37,7 +38,8 @@ const int CONSOLE_HEIGHT = 20;
 enum scene {
     MENU,
     LOCAL_GAME,
-    MULTI_GAME
+    MULTI_GAME,
+    EXIT_GAME
 };
 enum scene actual_scene = MENU;
 
@@ -57,8 +59,10 @@ char tile[MAX_ROWS * MAX_COLS];
 
 // Functions
 void resize_console(int, int);
+void clear_screen();
 void draw_menu();
-void game();
+void ask_if_want_exit();
+void game(int, int);
 void draw_game(int, int);
 
 int main()
@@ -79,7 +83,7 @@ int main()
     SetWindowLong(window_handle, GWL_STYLE, style);
 
     // Clear the screen
-    system("cls");
+    clear_screen();
 
     // Make cursor invisible
     cursor_info.bVisible = FALSE;
@@ -88,7 +92,7 @@ int main()
     // Logic and string variables
     input = 0;
 
-    arrow_text[FALSE] = "  ";
+    arrow_text[FALSE] = "   ";
     arrow_text[TRUE]  = ">> ";
     arrow_len[FALSE]  = strlen(arrow_text[FALSE]);
     arrow_len[TRUE]   = strlen(arrow_text[TRUE]);
@@ -109,8 +113,6 @@ int main()
                 input = getch();
                     switch (input)
                     {
-                        case 'q':
-                            running = FALSE;
                         case UP:
                             if (arrow > 0) arrow--;
                             else arrow = OPTIONS_COUNT-1;
@@ -127,17 +129,13 @@ int main()
                             switch (arrow)
                             {
                                 case PLAY_LOCAL:
-                                    // Set LOCAL GAME
-                                    // Re-loop
+                                    actual_scene = PLAY_LOCAL;
                                     break;
                                 case PLAY_MULTI:
-                                    // Set MULTI GAME
-                                    // Re-loop
+                                    actual_scene = PLAY_LOCAL;
                                     break;
                                 case EXIT:
-                                    // Ask if sure
-                                        // If yes, return
-                                        // If no, re-loop
+                                    running = FALSE;
                                     break;
                             }
                             break;
@@ -191,6 +189,9 @@ int main()
                                             // Set MENU
                                             // Re-loop
                 break;
+            case EXIT_GAME:
+                ask_if_want_exit();
+                break;
             default:
                 return 1;
         }
@@ -215,11 +216,24 @@ void resize_console(int width, int height)
     SetConsoleWindowInfo(console_handle, TRUE, &rect);
 }
 
+void clear_screen()
+{
+    // Make a clear string
+    char clean_line[CONSOLE_WIDTH + 1];
+    for (int i = 0; i < CONSOLE_WIDTH; i++) clean_line[i] = space[0];
+    clean_line[CONSOLE_WIDTH] = '\0';
+
+    // Apply it in every line of console
+    for (int i = 0; i < CONSOLE_HEIGHT; i++)
+    {
+        WriteConsoleOutputCharacter(console_handle, clean_line, CONSOLE_WIDTH, coord(0, i), &characters);
+    }
+}
+
 void draw_menu()
 {
     char is_arrow_in_this_line;
     int len_already_written;
-    char *space = " ";
 
     for (int i = 0; i < OPTIONS_COUNT; i++)
     {
