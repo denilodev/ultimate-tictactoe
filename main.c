@@ -9,11 +9,15 @@
 #define LEFT        'a'
 #define RIGHT       'd'
 #define SELECT      ' '
+#define QUIT        'q'
 #define coord(c, r) (COORD){c, r}
 #define MIN_ROWS    3
 #define MAX_ROWS    10
 #define MIN_COLS    3
 #define MAX_COLS    10
+#define VOID_CHAR   ' '
+#define PLAYER_1_CHAR 'O'
+#define PLAYER_2_CHAR 'X'
 
 // General variables
 char running = TRUE;
@@ -69,7 +73,9 @@ char tile[MAX_ROWS * MAX_COLS];
 // Functions
 void resize_console(int, int);
 void clear_screen();
-void popup(enum popup);
+void cursor_visibility(int);
+char get_user_input();
+int popup(enum popup);
 void menu();
 void draw_menu();
 void game(int, int);
@@ -96,8 +102,7 @@ int main()
     clear_screen();
 
     // Makes cursor invisible
-    cursor_info.bVisible = FALSE;
-    SetConsoleCursorInfo(console_handle, &cursor_info);
+    cursor_visibility(FALSE);
 
     // Logic and string variables
     input = 0;
@@ -123,52 +128,52 @@ int main()
         switch (actual_scene)
         {
             case SCENE_MENU:
-                    menu();            
+                menu();            
                 break;
             case SCENE_LOCAL_GAME:
-                    game(MIN_ROWS, MIN_COLS);
-                    // Show TTT
-                    // TTT logic
-                    // If game is over
-                        // Show winner
-                        // Ask if want to replay or go back to MENU
-                            // If replay, re-loop
-                            // If go back
-                                // Set MENU
-                                // Re-loop
+                game(10, 10);
+                // Show TTT
+                // TTT logic
+                // If game is over
+                    // Show winner
+                    // Ask if want to replay or go back to MENU
+                        // If replay, re-loop
+                        // If go back
+                            // Set MENU
+                            // Re-loop
                 break;
             case SCENE_MULTI_GAME:
-                    // Ask if host or connect game
-                        // If host
-                            // Build server socket
-                            // Show IP and PORT to connect
-                            // Wait for connection
-                            // If connection
-                                // Show TTT
-                                // TTT logic
-                                // If game is over
-                                    // Show winner
-                                    // Ask if want to replay or go back to MENU
-                                        // If replay, re-loop
-                                        // If go back
-                                            // Set MENU
-                                            // Re-loop
-                        // If connect
-                            // Build client socket
-                            // Ask for IP Addres to connect
-                            // Ask for PORT to connect
-                            // If connection is not successful
-                                // Show that connection failed and return to ask again the Address and PORT
-                            // If connection is successuful
-                                // Show TTT
-                                // TTT logic
-                                // If game is over
-                                    // Show winner
-                                    // Ask if want to replay or go back to MENU
-                                        // If replay, re-loop
-                                        // If go back
-                                            // Set MENU
-                                            // Re-loop
+                // Ask if host or connect game
+                    // If host
+                        // Build server socket
+                        // Show IP and PORT to connect
+                        // Wait for connection
+                        // If connection
+                            // Show TTT
+                            // TTT logic
+                            // If game is over
+                                // Show winner
+                                // Ask if want to replay or go back to MENU
+                                    // If replay, re-loop
+                                    // If go back
+                                        // Set MENU
+                                        // Re-loop
+                    // If connect
+                        // Build client socket
+                        // Ask for IP Addres to connect
+                        // Ask for PORT to connect
+                        // If connection is not successful
+                            // Show that connection failed and return to ask again the Address and PORT
+                        // If connection is successuful
+                            // Show TTT
+                            // TTT logic
+                            // If game is over
+                                // Show winner
+                                // Ask if want to replay or go back to MENU
+                                    // If replay, re-loop
+                                    // If go back
+                                        // Set MENU
+                                        // Re-loop
                 break;
             default:
                 return 1;
@@ -198,7 +203,7 @@ void clear_screen()
 {
     // Make a clear string
     char clean_line[CONSOLE_WIDTH + 1];
-    for (int i = 0; i < CONSOLE_WIDTH; i++) clean_line[i] = space[0];
+    for (int i = 0; i < CONSOLE_WIDTH; i++) clean_line[i] = VOID_CHAR;
     clean_line[CONSOLE_WIDTH] = '\0';
 
     // Apply it in every line of console
@@ -208,10 +213,18 @@ void clear_screen()
     }
 }
 
-void popup(enum popup question)
+char get_user_input()
+{
+    // Ignore the caps lock effect
+    return tolower(getch());
+}
+
+int popup(enum popup question)
 {
     clear_screen();
+
     int temporary_arrow = FALSE;
+
     char *no_txt = "No";
     char no_len = strlen(no_txt);
     char *yes_txt = "Yes";
@@ -224,7 +237,7 @@ void popup(enum popup question)
     switch (question)
     {
         case POPUP_EXIT_PROGRAM:
-            while (running)
+            while (TRUE)
             {
                 // Print question
                 WriteConsoleOutputCharacter(console_handle, popup_txt[question], popup_len[question], coord(0, 0), &characters);
@@ -245,31 +258,87 @@ void popup(enum popup question)
                     case SELECT:
                         if (temporary_arrow == TRUE)
                         {
-                            running = FALSE;
-                            return;
-                        }
-                        else
-                        {
                             clear_screen();
-                            return;
+                            return TRUE;
                         }
-                        break;
+                    case QUIT:
+                        clear_screen();
+                        return FALSE;
                 } 
             }
-            break;
+
         case POPUP_HOST_OR_CONNECT:
-            return;
-            break;
+            while (TRUE)
+            {
+                // Print question
+                WriteConsoleOutputCharacter(console_handle, popup_txt[question], popup_len[question], coord(0, 0), &characters);
+                // Print option 0 (no)
+                WriteConsoleOutputCharacter(console_handle, arrow_text[!temporary_arrow], arrow_len[!temporary_arrow], coord(0, 1), &characters);
+                WriteConsoleOutputCharacter(console_handle, connect_txt, connect_len, coord(arrow_len[temporary_arrow], 1), &characters);
+                // Print option 1 (yes)
+                WriteConsoleOutputCharacter(console_handle, arrow_text[temporary_arrow], arrow_len[temporary_arrow], coord(0, 2), &characters);
+                WriteConsoleOutputCharacter(console_handle, host_txt, host_len, coord(arrow_len[temporary_arrow], 2), &characters);
+                // Input logic
+                input = getch();
+                switch (input)
+                {
+                    case UP:
+                    case DOWN:
+                        temporary_arrow = !temporary_arrow;
+                        break;
+                    case SELECT:
+                        if (temporary_arrow == TRUE)
+                        {
+                            clear_screen();
+                            return TRUE;
+                        }
+                    case QUIT:
+                        clear_screen();
+                        return FALSE;
+                }
+            }
+
         case POPUP_LEFT_GAME:
-            return;
-            break;
+            while (TRUE)
+            {
+                // Print question
+                WriteConsoleOutputCharacter(console_handle, popup_txt[question], popup_len[question], coord(0, 0), &characters);
+                // Print option 0 (no)
+                WriteConsoleOutputCharacter(console_handle, arrow_text[!temporary_arrow], arrow_len[!temporary_arrow], coord(0, 1), &characters);
+                WriteConsoleOutputCharacter(console_handle, no_txt, no_len, coord(arrow_len[temporary_arrow], 1), &characters);
+                // Print option 1 (yes)
+                WriteConsoleOutputCharacter(console_handle, arrow_text[temporary_arrow], arrow_len[temporary_arrow], coord(0, 2), &characters);
+                WriteConsoleOutputCharacter(console_handle, yes_txt, yes_len, coord(arrow_len[temporary_arrow], 2), &characters);
+                // Input logic
+                input = getch();
+                switch (input)
+                {
+                    case UP:
+                    case DOWN:
+                        temporary_arrow = !temporary_arrow;
+                        break;
+                     case SELECT:
+                         if (temporary_arrow == TRUE)
+                        {
+                            clear_screen();
+                            return TRUE;
+                        }
+                     case QUIT:
+                        clear_screen();
+                        return FALSE;
+                }
+            }
+
+        default:
+            return -1;
     }
 }
 
 void menu()
 {
     draw_menu();
-    input = getch();
+    
+    input = get_user_input();
     switch (input)
     {
         case UP:
@@ -288,13 +357,18 @@ void menu()
                     actual_scene = SCENE_LOCAL_GAME;
                     break;
                 case PLAY_MULTI:
-                    clear_screen();
-                    actual_scene = SCENE_MULTI_GAME;
+                    popup(POPUP_HOST_OR_CONNECT);
+                    // clear_screen();
+                    // actual_scene = SCENE_MULTI_GAME;
                     break;
                 case EXIT:
-                    popup(POPUP_EXIT_PROGRAM);
+                    // If answer is Yes, close the program
+                    if (popup(POPUP_EXIT_PROGRAM)) running = FALSE;
                     break;
             }
+            break;
+        case QUIT:
+            if (popup(POPUP_EXIT_PROGRAM)) running = FALSE;
             break;
     }   
 }
@@ -316,9 +390,24 @@ void draw_menu()
         len_already_written = arrow_len[is_arrow_in_this_line] + option_len[i];
         for (int j = len_already_written; j < CONSOLE_WIDTH; j++) WriteConsoleOutputCharacter(console_handle, space, 1, coord(j, i), &characters);
     }
+    char *hint_1 = " W and S to navigate through menu";
+    char hint_1_len = strlen(hint_1);
+    char *hint_2 = " SPACE to select your option";
+    char hint_2_len = strlen(hint_2);
+    char *hint_3 = " Q to come back or quit";
+    char hint_3_len = strlen(hint_3);
+    WriteConsoleOutputCharacter(console_handle, hint_1, hint_1_len, coord(0, CONSOLE_HEIGHT-4), &characters);
+    WriteConsoleOutputCharacter(console_handle, hint_2, hint_2_len, coord(0, CONSOLE_HEIGHT-3), &characters);
+    WriteConsoleOutputCharacter(console_handle, hint_3, hint_3_len, coord(0, CONSOLE_HEIGHT-2), &characters);
 }
 
-void game(int grid_row_count, int grid_col_count)
+void cursor_visibility(int set)
+{
+    cursor_info.bVisible = set;
+    SetConsoleCursorInfo(console_handle, &cursor_info);
+}
+
+void game(int grid_col_count, int grid_row_count)
 {
     // Clamp the value of rows and columns beetween the minimum and maximum values
     if (grid_row_count < MIN_ROWS) grid_row_count = MIN_ROWS;
@@ -333,22 +422,20 @@ void game(int grid_row_count, int grid_col_count)
     int grid_cols_total_count = (2 * grid_col_count) - 1;
     // Tile selected position
     COORD tile_selected = coord(0, 0);
-    arrow = -1;
     // Clean the tiles
-    for (int i = 0; i < grid_total_size; i++) tile[i] = ' ';
-    // Clean input
-    input = 0;
+    for (int i = 0; i < grid_total_size; i++) tile[i] = VOID_CHAR;
 
-    // Makes cursor visible
-    cursor_info.bVisible = TRUE;
-    SetConsoleCursorInfo(console_handle, &cursor_info);
+    // Players
+    char is_player_1_turn = TRUE;
+
+    cursor_visibility(TRUE);
     
     draw_game(grid_rows_total_count, grid_cols_total_count);
 
     SetConsoleCursorPosition(console_handle, coord(1, 0));
-    while (running)
+    while (actual_scene == SCENE_LOCAL_GAME || actual_scene == SCENE_MULTI_GAME)
     {
-        input = getch();
+        input = get_user_input();
         switch (input)
         {
         case UP:
@@ -356,7 +443,6 @@ void game(int grid_row_count, int grid_col_count)
             break;
         case DOWN:
             if (tile_selected.Y < grid_row_count-1) tile_selected.Y++;
-            //if (cursor_position.Y == grid_row_count)
             break;
         case LEFT:
             if (tile_selected.X > 0) tile_selected.X--;
@@ -364,8 +450,33 @@ void game(int grid_row_count, int grid_col_count)
         case RIGHT:
             if (tile_selected.X < grid_col_count-1) tile_selected.X++;
             break;
-        default:
+        case SELECT:
+            int tile_to_place = (tile_selected.Y * grid_col_count) + tile_selected.X;
+            if (tile[tile_to_place] == VOID_CHAR)
+            {
+                if (is_player_1_turn)
+                {
+                    tile[tile_to_place] = PLAYER_1_CHAR;
+                }
+                else
+                {
+                    tile[tile_to_place] = PLAYER_2_CHAR;
+                }
+                is_player_1_turn = !is_player_1_turn;
+                draw_game(grid_rows_total_count, grid_cols_total_count);
+            }
             break;
+        case QUIT:
+            cursor_visibility(FALSE);
+            if (popup(POPUP_LEFT_GAME))
+            {
+                // Go to menu
+                actual_scene = SCENE_MENU;
+                return;
+            }
+            // Need to redraw the game, once the popup clear everything
+            draw_game(grid_rows_total_count, grid_cols_total_count);
+            cursor_visibility(TRUE);
         }
         int x = (tile_selected.X * 4) + 1;
         int y = (tile_selected.Y * 2);
@@ -375,6 +486,7 @@ void game(int grid_row_count, int grid_col_count)
 
 void draw_game(int rows, int cols)
 {
+    char that_tile[4] = "   ";
     int tile_number = 0;
     for (int i = 0; i < rows; i++)
     {
@@ -385,13 +497,13 @@ void draw_game(int rows, int cols)
             {
                 if (j % 2 == 0)
                 {
-                    printf(" %c ", tile[tile_number]);
+                    that_tile[1] = tile[tile_number];
+                    WriteConsoleOutputCharacter(console_handle, that_tile, 3, coord(j * 2, i), &characters);
                     tile_number++;
-                    //snprintf(grid, grid_string_lenght, " %c ", tile[0], tile[1], tile[2]);
                 }
                 else
                 {
-                    printf("|");
+                    WriteConsoleOutputCharacter(console_handle, "|", 1, coord((j * 2) + 1, i), &characters);
                 }
             }
             // Else (is odd), draw the lines
@@ -399,15 +511,13 @@ void draw_game(int rows, int cols)
             {
                 if (j % 2 == 0)
                 {
-                    printf("---");
+                    WriteConsoleOutputCharacter(console_handle, "---", 3, coord(j * 2, i), &characters);
                 }
                 else
                 {
-                    printf("|");
+                    WriteConsoleOutputCharacter(console_handle, "|", 1, coord((j * 2) + 1, i), &characters);
                 }
-                //snprintf(grid, grid_string_lenght, "═══╬═══╬═══");
             }
         }
-        printf("\n");
     }
 }
