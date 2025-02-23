@@ -11,13 +11,19 @@
 #define SELECT      ' '
 #define QUIT        'q'
 #define coord(c, r) (COORD){c, r}
+
 #define MIN_ROWS    3
 #define MAX_ROWS    10
 #define MIN_COLS    3
 #define MAX_COLS    10
+#define MIN_PLAYERS 2
+#define MAX_PLAYERS 4
+
 #define VOID_CHAR   ' '
 #define PLAYER_1_CHAR 'O'
 #define PLAYER_2_CHAR 'X'
+#define PLAYER_3_CHAR 'A'
+#define PLAYER_4_CHAR 'Z'
 
 // General variables
 char running = TRUE;
@@ -69,6 +75,21 @@ char option_len[OPTIONS_COUNT];
 
 // Game variables
 char tile[MAX_ROWS * MAX_COLS];
+enum game_custom_options {
+    GAME_WIDTH,
+    GAME_HEIGHT,
+    GAME_SEQUENCE,
+    GAME_PLAYERS,
+
+    GAME_CUSTOM_COUNT
+};
+char *game_custom_txt[GAME_CUSTOM_COUNT];
+char game_custom_len[GAME_CUSTOM_COUNT];
+unsigned char game_variable[GAME_CUSTOM_COUNT];
+unsigned char game_variable_min[GAME_CUSTOM_COUNT];
+unsigned char game_variable_max[GAME_CUSTOM_COUNT];
+
+const char player_char[MAX_PLAYERS] = {PLAYER_1_CHAR, PLAYER_2_CHAR, PLAYER_3_CHAR, PLAYER_4_CHAR};
 
 // Functions
 void resize_console(int, int);
@@ -78,8 +99,11 @@ char get_user_input();
 int popup(enum popup);
 void menu();
 void draw_menu();
-void game(int, int);
-void draw_game(int, int);
+int customize_game();
+void draw_customize_game(char);
+void game();
+void draw_game(int, int, char);
+char check_game_over(char);
 
 int main()
 {
@@ -97,6 +121,9 @@ int main()
     style = GetWindowLong(window_handle, GWL_STYLE);
     style &= ~(WS_MAXIMIZEBOX | WS_SIZEBOX);
     SetWindowLong(window_handle, GWL_STYLE, style);
+
+    // Set application name
+    SetConsoleTitle("Ultimate TicTacToe");
 
     // Clear the screen
     clear_screen();
@@ -122,6 +149,19 @@ int main()
     popup_txt[POPUP_LEFT_GAME] = "Sure want to left the game?";
     for (int i = 0; i < POPUP_COUNT; i++) popup_len[i] = strlen(popup_txt[i]);
 
+    game_custom_txt[GAME_WIDTH] = "Width of grid";
+    game_custom_txt[GAME_HEIGHT] = "Height of grid";
+    game_custom_txt[GAME_SEQUENCE] = "Sequence to win";
+    game_custom_txt[GAME_PLAYERS] = "Number of players";
+    for (int i = 0; i < GAME_CUSTOM_COUNT; i++) game_custom_len[i] = strlen(game_custom_txt[i]);
+    game_variable[GAME_WIDTH] = game_variable_min[GAME_WIDTH] = MIN_COLS;
+    game_variable_max[GAME_WIDTH] = MAX_COLS;
+    game_variable[GAME_HEIGHT] = game_variable_min[GAME_HEIGHT] = MIN_ROWS;
+    game_variable_max[GAME_HEIGHT] = MAX_ROWS;
+    game_variable[GAME_SEQUENCE] = game_variable_min[GAME_SEQUENCE] = game_variable_max[GAME_SEQUENCE] = 3;
+    game_variable[GAME_PLAYERS] = game_variable_min[GAME_PLAYERS] = MIN_PLAYERS;
+    game_variable_max[GAME_PLAYERS] = MAX_PLAYERS;
+
     // Main loop
     while (running)
     {
@@ -131,7 +171,7 @@ int main()
                 menu();            
                 break;
             case SCENE_LOCAL_GAME:
-                game(10, 10);
+                game();
                 // Show TTT
                 // TTT logic
                 // If game is over
@@ -211,6 +251,12 @@ void clear_screen()
     {
         WriteConsoleOutputCharacter(console_handle, clean_line, CONSOLE_WIDTH, coord(0, i), &characters);
     }
+}
+
+void cursor_visibility(int set)
+{
+    cursor_info.bVisible = set;
+    SetConsoleCursorInfo(console_handle, &cursor_info);
 }
 
 char get_user_input()
@@ -354,7 +400,7 @@ void menu()
             {
                 case PLAY_LOCAL:
                     clear_screen();
-                    actual_scene = SCENE_LOCAL_GAME;
+                    if (customize_game()) actual_scene = SCENE_LOCAL_GAME;
                     break;
                 case PLAY_MULTI:
                     popup(POPUP_HOST_OR_CONNECT);
@@ -382,7 +428,7 @@ void draw_menu()
     {
         // Check if the arrow is in this line
         is_arrow_in_this_line = (i == arrow);
-        // Draw the arrow of it's absence
+        // Draw the arrow or it's absence
         WriteConsoleOutputCharacter(console_handle, arrow_text[is_arrow_in_this_line], arrow_len[is_arrow_in_this_line], coord(0, i), &characters);
         // Draw the actual menu line
         WriteConsoleOutputCharacter(console_handle, option_txt[i], option_len[i], coord(arrow_len[is_arrow_in_this_line], i), &characters);
@@ -401,14 +447,120 @@ void draw_menu()
     WriteConsoleOutputCharacter(console_handle, hint_3, hint_3_len, coord(0, CONSOLE_HEIGHT-2), &characters);
 }
 
-void cursor_visibility(int set)
+int customize_game()
 {
-    cursor_info.bVisible = set;
-    SetConsoleCursorInfo(console_handle, &cursor_info);
+    char new_arrow = GAME_CUSTOM_COUNT;
+    char custom_options = GAME_CUSTOM_COUNT + 2;
+
+    while (TRUE)
+    {
+        draw_customize_game(new_arrow);
+        input = get_user_input();
+        switch (input)
+        {
+            case UP:
+                if (new_arrow > 0) new_arrow--;
+                else new_arrow = custom_options - 1;
+                break;
+            case DOWN:
+                if (new_arrow < custom_options - 1) new_arrow++;
+                else new_arrow = 0;
+                break;
+            case LEFT:
+                if (new_arrow <= GAME_CUSTOM_COUNT && game_variable[new_arrow] > game_variable_min[new_arrow])
+                    {
+                        game_variable[new_arrow]--;
+                        game_variable_max[GAME_SEQUENCE] = game_variable[GAME_WIDTH] > game_variable[GAME_HEIGHT] ? game_variable[GAME_HEIGHT] : game_variable[GAME_WIDTH];
+                        if (game_variable[GAME_SEQUENCE] > game_variable_max[GAME_SEQUENCE]) game_variable[GAME_SEQUENCE] = game_variable_max[GAME_SEQUENCE];
+                    }
+                break;
+            case RIGHT:
+                if (new_arrow <= GAME_CUSTOM_COUNT && game_variable[new_arrow] < game_variable_max[new_arrow])
+                    {
+                        game_variable[new_arrow]++;
+                        game_variable_max[GAME_SEQUENCE] = game_variable[GAME_WIDTH] > game_variable[GAME_HEIGHT] ? game_variable[GAME_HEIGHT] : game_variable[GAME_WIDTH];
+                        if (game_variable[GAME_SEQUENCE] > game_variable_max[GAME_SEQUENCE]) game_variable[GAME_SEQUENCE] = game_variable_max[GAME_SEQUENCE];
+                    }
+                break;
+            case SELECT:
+                clear_screen();
+                switch (new_arrow)
+                {
+                    case GAME_CUSTOM_COUNT:
+                        return TRUE;
+                    case GAME_CUSTOM_COUNT + 1:
+                        return FALSE;
+                }
+                break;
+            case QUIT:
+                clear_screen();
+                return FALSE;
+        }
+    }
 }
 
-void game(int grid_col_count, int grid_row_count)
+void draw_customize_game(char arrow)
 {
+    char is_arrow_in_this_line;
+    int len_already_written;
+
+    for (int i = 0; i < GAME_CUSTOM_COUNT; i++)
+    {
+        // Check if the arrow is in this line
+        is_arrow_in_this_line = (i == arrow);
+        // Draw the arrow or it's absence
+        WriteConsoleOutputCharacter(console_handle, arrow_text[is_arrow_in_this_line], arrow_len[is_arrow_in_this_line], coord(0, i), &characters);
+        // Draw the custom game line
+        WriteConsoleOutputCharacter(console_handle, game_custom_txt[i], game_custom_len[i], coord(arrow_len[is_arrow_in_this_line], i), &characters);
+        // Draw the number
+        len_already_written = arrow_len[is_arrow_in_this_line] + game_custom_len[GAME_PLAYERS] + 1;
+        WriteConsoleOutputCharacter(console_handle, "<", 1, coord(len_already_written, i), &characters);
+        char number[10] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
+        if (game_variable[i] > 9)
+        {
+            char variable_txt[3] = "  ";
+            variable_txt[0] = number[game_variable[i]/10];
+            variable_txt[1] = number[game_variable[i]%10];
+            WriteConsoleOutputCharacter(console_handle, variable_txt, 2, coord(len_already_written + 1, i), &characters);
+            WriteConsoleOutputCharacter(console_handle, ">", 1, coord(len_already_written + 3, i), &characters);
+        }
+        else
+        {
+            char variable_txt[2] = " ";
+            variable_txt[0] = number[game_variable[i]];
+            WriteConsoleOutputCharacter(console_handle, variable_txt, 1, coord(len_already_written + 1, i), &characters);
+            WriteConsoleOutputCharacter(console_handle, "> ", 2, coord(len_already_written + 2, i), &characters);
+        }
+    }
+
+    for (int i = GAME_CUSTOM_COUNT + 1; i <= GAME_CUSTOM_COUNT + 2; i++)
+    {
+        // Check if the arrow is in this line
+        is_arrow_in_this_line = (i == arrow + 1);
+        // Draw the arrow or it's absence
+        WriteConsoleOutputCharacter(console_handle, arrow_text[is_arrow_in_this_line], arrow_len[is_arrow_in_this_line], coord(0, i), &characters);
+        // Draw the line
+        if (i == GAME_CUSTOM_COUNT + 1) WriteConsoleOutputCharacter(console_handle, "Play", 4, coord(arrow_len[is_arrow_in_this_line], i), &characters);
+        else                            WriteConsoleOutputCharacter(console_handle, "Back", 4, coord(arrow_len[is_arrow_in_this_line], i), &characters);
+    }
+
+    char *hint_1 = " W and S to navigate through the options";
+    char hint_1_len = strlen(hint_1);
+    char *hint_2 = " A and D to change values";
+    char hint_2_len = strlen(hint_2);
+    char *hint_3 = " Q to come back";
+    char hint_3_len = strlen(hint_3);
+    WriteConsoleOutputCharacter(console_handle, hint_1, hint_1_len, coord(0, CONSOLE_HEIGHT-4), &characters);
+    WriteConsoleOutputCharacter(console_handle, hint_2, hint_2_len, coord(0, CONSOLE_HEIGHT-3), &characters);
+    WriteConsoleOutputCharacter(console_handle, hint_3, hint_3_len, coord(0, CONSOLE_HEIGHT-2), &characters);
+}
+
+void game()
+{
+    int grid_col_count = game_variable[GAME_WIDTH];
+    int grid_row_count = game_variable[GAME_HEIGHT];
+    int last_player_index = game_variable[GAME_PLAYERS] - 1;
+
     // Clamp the value of rows and columns beetween the minimum and maximum values
     if (grid_row_count < MIN_ROWS) grid_row_count = MIN_ROWS;
     else if (grid_row_count > MAX_ROWS) grid_row_count = MAX_ROWS;
@@ -426,11 +578,11 @@ void game(int grid_col_count, int grid_row_count)
     for (int i = 0; i < grid_total_size; i++) tile[i] = VOID_CHAR;
 
     // Players
-    char is_player_1_turn = TRUE;
+    char player_turn = 0;
 
     cursor_visibility(TRUE);
     
-    draw_game(grid_rows_total_count, grid_cols_total_count);
+    draw_game(grid_rows_total_count, grid_cols_total_count, player_turn);
 
     SetConsoleCursorPosition(console_handle, coord(1, 0));
     while (actual_scene == SCENE_LOCAL_GAME || actual_scene == SCENE_MULTI_GAME)
@@ -438,53 +590,53 @@ void game(int grid_col_count, int grid_row_count)
         input = get_user_input();
         switch (input)
         {
-        case UP:
-            if (tile_selected.Y > 0) tile_selected.Y--;
-            break;
-        case DOWN:
-            if (tile_selected.Y < grid_row_count-1) tile_selected.Y++;
-            break;
-        case LEFT:
-            if (tile_selected.X > 0) tile_selected.X--;
-            break;
-        case RIGHT:
-            if (tile_selected.X < grid_col_count-1) tile_selected.X++;
-            break;
-        case SELECT:
-            int tile_to_place = (tile_selected.Y * grid_col_count) + tile_selected.X;
-            if (tile[tile_to_place] == VOID_CHAR)
-            {
-                if (is_player_1_turn)
+            case UP:
+                if (tile_selected.Y > 0) tile_selected.Y--;
+                break;
+            case DOWN:
+                if (tile_selected.Y < grid_row_count-1) tile_selected.Y++;
+                break;
+            case LEFT:
+                if (tile_selected.X > 0) tile_selected.X--;
+                break;
+            case RIGHT:
+                if (tile_selected.X < grid_col_count-1) tile_selected.X++;
+                break;
+            case SELECT:
+                int tile_to_place = (tile_selected.Y * grid_col_count) + tile_selected.X;
+                if (tile[tile_to_place] == VOID_CHAR)
                 {
-                    tile[tile_to_place] = PLAYER_1_CHAR;
+                    tile[tile_to_place] = player_char[player_turn];
+                    if (check_game_over(tile_to_place))
+                    {
+                        actual_scene = SCENE_MENU;
+                        return;
+                    }
+                    if (player_turn != last_player_index) player_turn++;
+                    else player_turn = 0;
+
+                    draw_game(grid_rows_total_count, grid_cols_total_count, player_turn);
                 }
-                else
+                break;
+            case QUIT:
+                cursor_visibility(FALSE);
+                if (popup(POPUP_LEFT_GAME))
                 {
-                    tile[tile_to_place] = PLAYER_2_CHAR;
+                    // Go to menu
+                    actual_scene = SCENE_MENU;
+                    return;
                 }
-                is_player_1_turn = !is_player_1_turn;
-                draw_game(grid_rows_total_count, grid_cols_total_count);
+                // Need to redraw the game, once the popup clear everything
+                draw_game(grid_rows_total_count, grid_cols_total_count, player_turn);
+                cursor_visibility(TRUE);
             }
-            break;
-        case QUIT:
-            cursor_visibility(FALSE);
-            if (popup(POPUP_LEFT_GAME))
-            {
-                // Go to menu
-                actual_scene = SCENE_MENU;
-                return;
-            }
-            // Need to redraw the game, once the popup clear everything
-            draw_game(grid_rows_total_count, grid_cols_total_count);
-            cursor_visibility(TRUE);
-        }
-        int x = (tile_selected.X * 4) + 1;
-        int y = (tile_selected.Y * 2);
-        SetConsoleCursorPosition(console_handle, coord(x, y));
+            int x = (tile_selected.X * 4) + 1;
+            int y = (tile_selected.Y * 2);
+            SetConsoleCursorPosition(console_handle, coord(x, y));
     }
 }
 
-void draw_game(int rows, int cols)
+void draw_game(int rows, int cols, char player_turn)
 {
     char that_tile[4] = "   ";
     int tile_number = 0;
@@ -492,7 +644,7 @@ void draw_game(int rows, int cols)
     {
         for (int j = 0; j < cols; j++)
         {
-            // If column is even, draw the tiles
+            // If row is even, draw the tiles
             if (i % 2 == 0)
             {
                 if (j % 2 == 0)
@@ -520,4 +672,15 @@ void draw_game(int rows, int cols)
             }
         }
     }
+
+    char player_turn_txt[15] = "Player Turn: ?";
+    player_turn_txt[13] = player_char[player_turn];
+    char player_turn_len = strlen(player_turn_txt);
+    // WriteConsoleOutputCharacter(console_handle, hint_3,       hint_3_len,      coord(0, CONSOLE_HEIGHT-2), &characters);
+    WriteConsoleOutputCharacter(console_handle, player_turn_txt, player_turn_len, coord(0, CONSOLE_HEIGHT-1), &characters);
+}
+
+char check_game_over(char last_tile_setted)
+{
+    return FALSE;
 }
