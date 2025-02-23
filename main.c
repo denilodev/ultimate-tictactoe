@@ -12,10 +12,10 @@
 #define QUIT        'q'
 #define coord(c, r) (COORD){c, r}
 
-#define MIN_ROWS    3
-#define MAX_ROWS    10
-#define MIN_COLS    3
-#define MAX_COLS    10
+#define MIN_HEIGHT  3
+#define MAX_HEIGHT  10
+#define MIN_WIDTH   3
+#define MAX_WIDTH   10
 #define MIN_PLAYERS 2
 #define MAX_PLAYERS 4
 
@@ -24,6 +24,7 @@
 #define PLAYER_2_CHAR 'X'
 #define PLAYER_3_CHAR 'A'
 #define PLAYER_4_CHAR 'Z'
+#define DRAW        '\0'
 
 // General variables
 char running = TRUE;
@@ -74,7 +75,8 @@ char *option_txt[OPTIONS_COUNT];
 char option_len[OPTIONS_COUNT];
 
 // Game variables
-char tile[MAX_ROWS * MAX_COLS];
+char tile[MAX_WIDTH][MAX_HEIGHT];
+char tiles_occupied;
 enum game_custom_options {
     GAME_WIDTH,
     GAME_HEIGHT,
@@ -103,7 +105,8 @@ int customize_game();
 void draw_customize_game(char);
 void game();
 void draw_game(int, int, char);
-char check_game_over(char);
+char check_game_over(char, char);
+void game_over_screen(char);
 
 int main()
 {
@@ -154,10 +157,10 @@ int main()
     game_custom_txt[GAME_SEQUENCE] = "Sequence to win";
     game_custom_txt[GAME_PLAYERS] = "Number of players";
     for (int i = 0; i < GAME_CUSTOM_COUNT; i++) game_custom_len[i] = strlen(game_custom_txt[i]);
-    game_variable[GAME_WIDTH] = game_variable_min[GAME_WIDTH] = MIN_COLS;
-    game_variable_max[GAME_WIDTH] = MAX_COLS;
-    game_variable[GAME_HEIGHT] = game_variable_min[GAME_HEIGHT] = MIN_ROWS;
-    game_variable_max[GAME_HEIGHT] = MAX_ROWS;
+    game_variable[GAME_WIDTH] = game_variable_min[GAME_WIDTH] = MIN_WIDTH;
+    game_variable_max[GAME_WIDTH] = MAX_WIDTH;
+    game_variable[GAME_HEIGHT] = game_variable_min[GAME_HEIGHT] = MIN_HEIGHT;
+    game_variable_max[GAME_HEIGHT] = MAX_HEIGHT;
     game_variable[GAME_SEQUENCE] = game_variable_min[GAME_SEQUENCE] = game_variable_max[GAME_SEQUENCE] = 3;
     game_variable[GAME_PLAYERS] = game_variable_min[GAME_PLAYERS] = MIN_PLAYERS;
     game_variable_max[GAME_PLAYERS] = MAX_PLAYERS;
@@ -294,7 +297,7 @@ int popup(enum popup question)
                 WriteConsoleOutputCharacter(console_handle, arrow_text[temporary_arrow], arrow_len[temporary_arrow], coord(0, 2), &characters);
                 WriteConsoleOutputCharacter(console_handle, yes_txt, yes_len, coord(arrow_len[temporary_arrow], 2), &characters);
                 // Input logic
-                input = getch();
+                input = get_user_input();
                 switch (input)
                 {
                     case UP:
@@ -325,7 +328,7 @@ int popup(enum popup question)
                 WriteConsoleOutputCharacter(console_handle, arrow_text[temporary_arrow], arrow_len[temporary_arrow], coord(0, 2), &characters);
                 WriteConsoleOutputCharacter(console_handle, host_txt, host_len, coord(arrow_len[temporary_arrow], 2), &characters);
                 // Input logic
-                input = getch();
+                input = get_user_input();
                 switch (input)
                 {
                     case UP:
@@ -356,7 +359,7 @@ int popup(enum popup question)
                 WriteConsoleOutputCharacter(console_handle, arrow_text[temporary_arrow], arrow_len[temporary_arrow], coord(0, 2), &characters);
                 WriteConsoleOutputCharacter(console_handle, yes_txt, yes_len, coord(arrow_len[temporary_arrow], 2), &characters);
                 // Input logic
-                input = getch();
+                input = get_user_input();
                 switch (input)
                 {
                     case UP:
@@ -557,32 +560,30 @@ void draw_customize_game(char arrow)
 
 void game()
 {
-    int grid_col_count = game_variable[GAME_WIDTH];
-    int grid_row_count = game_variable[GAME_HEIGHT];
+    int grid_width_count = game_variable[GAME_WIDTH];
+    int grid_height_count = game_variable[GAME_HEIGHT];
     int last_player_index = game_variable[GAME_PLAYERS] - 1;
 
-    // Clamp the value of rows and columns beetween the minimum and maximum values
-    if (grid_row_count < MIN_ROWS) grid_row_count = MIN_ROWS;
-    else if (grid_row_count > MAX_ROWS) grid_row_count = MAX_ROWS;
-    if (grid_col_count < MIN_COLS) grid_col_count = MIN_COLS;
-    else if (grid_col_count > MAX_COLS) grid_col_count = MAX_COLS;
-
     // Grid variables
-    int grid_total_size = grid_row_count * grid_col_count;
+    int grid_total_size = grid_height_count * grid_width_count;
     int grid_string_lenght = (3 * grid_total_size) + (grid_total_size - 1) + 1;
-    int grid_rows_total_count = (2 * grid_row_count) - 1;
-    int grid_cols_total_count = (2 * grid_col_count) - 1;
+    int grid_height_total_count = (2 * grid_height_count) - 1;
+    int grid_width_total_count = (2 * grid_width_count) - 1;
     // Tile selected position
     COORD tile_selected = coord(0, 0);
     // Clean the tiles
-    for (int i = 0; i < grid_total_size; i++) tile[i] = VOID_CHAR;
+    for (int i = 0; i < grid_height_count; i++)
+    {
+        for (int j = 0; j < grid_width_count; j++) tile[j][i] = VOID_CHAR;
+    }
+    tiles_occupied = 0;
 
     // Players
     char player_turn = 0;
 
     cursor_visibility(TRUE);
     
-    draw_game(grid_rows_total_count, grid_cols_total_count, player_turn);
+    draw_game(grid_width_total_count, grid_height_total_count, player_turn);
 
     SetConsoleCursorPosition(console_handle, coord(1, 0));
     while (actual_scene == SCENE_LOCAL_GAME || actual_scene == SCENE_MULTI_GAME)
@@ -594,28 +595,38 @@ void game()
                 if (tile_selected.Y > 0) tile_selected.Y--;
                 break;
             case DOWN:
-                if (tile_selected.Y < grid_row_count-1) tile_selected.Y++;
+                if (tile_selected.Y < grid_height_count-1) tile_selected.Y++;
                 break;
             case LEFT:
                 if (tile_selected.X > 0) tile_selected.X--;
                 break;
             case RIGHT:
-                if (tile_selected.X < grid_col_count-1) tile_selected.X++;
+                if (tile_selected.X < grid_width_count-1) tile_selected.X++;
                 break;
             case SELECT:
-                int tile_to_place = (tile_selected.Y * grid_col_count) + tile_selected.X;
-                if (tile[tile_to_place] == VOID_CHAR)
+                if (tile[tile_selected.X][tile_selected.Y] == VOID_CHAR)
                 {
-                    tile[tile_to_place] = player_char[player_turn];
-                    if (check_game_over(tile_to_place))
+                    tile[tile_selected.X][tile_selected.Y] = player_char[player_turn];
+                    // Check if someone won
+                    if (check_game_over(tile_selected.X, tile_selected.Y))
                     {
+                        game_over_screen(player_char[player_turn]);
                         actual_scene = SCENE_MENU;
                         return;
                     }
+                    // Check if is draw
+                    tiles_occupied++;
+                    if (tiles_occupied == grid_total_size)
+                    {
+                        game_over_screen(DRAW);
+                        actual_scene = SCENE_MENU;
+                        return;
+                    }
+                    // Change the turn owner
                     if (player_turn != last_player_index) player_turn++;
                     else player_turn = 0;
 
-                    draw_game(grid_rows_total_count, grid_cols_total_count, player_turn);
+                    draw_game(grid_width_total_count, grid_height_total_count, player_turn);
                 }
                 break;
             case QUIT:
@@ -627,7 +638,7 @@ void game()
                     return;
                 }
                 // Need to redraw the game, once the popup clear everything
-                draw_game(grid_rows_total_count, grid_cols_total_count, player_turn);
+                draw_game(grid_width_total_count, grid_height_total_count, player_turn);
                 cursor_visibility(TRUE);
             }
             int x = (tile_selected.X * 4) + 1;
@@ -636,22 +647,24 @@ void game()
     }
 }
 
-void draw_game(int rows, int cols, char player_turn)
+void draw_game(int grid_width, int grid_height, char player_turn)
 {
+    char tile_x = 0;
+    char tile_y = 0;
+    
     char that_tile[4] = "   ";
-    int tile_number = 0;
-    for (int i = 0; i < rows; i++)
+    for (int i = 0; i < grid_height; i++)
     {
-        for (int j = 0; j < cols; j++)
+        for (int j = 0; j < grid_width; j++)
         {
             // If row is even, draw the tiles
             if (i % 2 == 0)
             {
                 if (j % 2 == 0)
                 {
-                    that_tile[1] = tile[tile_number];
+                    that_tile[1] = tile[tile_x][tile_y];
+                    tile_x++;
                     WriteConsoleOutputCharacter(console_handle, that_tile, 3, coord(j * 2, i), &characters);
-                    tile_number++;
                 }
                 else
                 {
@@ -671,16 +684,132 @@ void draw_game(int rows, int cols, char player_turn)
                 }
             }
         }
+        if (i % 2 == 0)
+        {
+            tile_x = 0;
+            tile_y++;
+        }
     }
 
     char player_turn_txt[15] = "Player Turn: ?";
     player_turn_txt[13] = player_char[player_turn];
     char player_turn_len = strlen(player_turn_txt);
-    // WriteConsoleOutputCharacter(console_handle, hint_3,       hint_3_len,      coord(0, CONSOLE_HEIGHT-2), &characters);
     WriteConsoleOutputCharacter(console_handle, player_turn_txt, player_turn_len, coord(0, CONSOLE_HEIGHT-1), &characters);
 }
 
-char check_game_over(char last_tile_setted)
+char check_game_over(char last_tile_setted_x, char last_tile_setted_y)
 {
+    int counter = 0;
+    int sequence = game_variable[GAME_SEQUENCE];
+    COORD max = {game_variable[GAME_WIDTH], game_variable[GAME_HEIGHT]};
+    char horizontal_constant_value;
+    char vertical_constant_value;
+    COORD tile_buffer = {0};
+    for (int i = 0; i < sequence; i++)
+    {
+        // Horizontal Sequence "—"
+        for (int j = 0; j < (sequence - 1); j++)
+        {
+            horizontal_constant_value = (sequence - 1) - i - j;
+            // Set the tile that will be analyzed
+            tile_buffer.X = last_tile_setted_x - horizontal_constant_value;
+            tile_buffer.Y = last_tile_setted_y;
+            if (tile_buffer.X >= last_tile_setted_x) tile_buffer.X++;
+            // Check if the tile being analyzed is valid
+            if (tile_buffer.X < 0 || tile_buffer.X > max.X) break;
+            // Increment the counter in case the tile analyzed and the last tile setted have the same char
+            if (tile[tile_buffer.X][tile_buffer.Y] == tile[last_tile_setted_x][last_tile_setted_y]) counter++;
+            else break;
+        }
+        if (counter == sequence - 1) return TRUE;
+        counter = 0;
+
+        // Vertical Sequence "|"
+        for (int j = 0; j < (sequence - 1); j++)
+        {
+            vertical_constant_value = (sequence - 1) - i - j;
+            // Set the tile that will be analyzed
+            tile_buffer.X = last_tile_setted_x;
+            tile_buffer.Y = last_tile_setted_y - vertical_constant_value;
+            if (tile_buffer.Y >= last_tile_setted_y) tile_buffer.Y++;
+            // Check if the tile being analyzed is valid
+            if (tile_buffer.Y < 0 || tile_buffer.Y > max.Y) break;
+            // Increment the counter in case the tile analyzed and the last tile setted have the same char
+            if (tile[tile_buffer.X][tile_buffer.Y] == tile[last_tile_setted_x][last_tile_setted_y]) counter++;
+            else break;
+        }
+        if (counter == sequence - 1) return TRUE;
+        counter = 0;
+
+        // Diagonal Sequence "\"
+        for (int j = 0; j < (sequence - 1); j++)
+        {
+            horizontal_constant_value = (sequence - 1) - i - j;
+            vertical_constant_value   = (sequence - 1) - i - j;
+            
+            tile_buffer.X = last_tile_setted_x - horizontal_constant_value;
+            if (tile_buffer.X >= last_tile_setted_x) tile_buffer.X++;
+            if (tile_buffer.X < 0 || tile_buffer.X > max.X) break;
+            
+            
+            tile_buffer.Y = last_tile_setted_y - vertical_constant_value;
+            if (tile_buffer.Y >= last_tile_setted_y) tile_buffer.Y++;
+            if (tile_buffer.Y < 0 || tile_buffer.Y > max.Y) break;
+
+            // Increment the counter in case the tile analyzed and the last tile setted have the same char
+            if (tile[tile_buffer.X][tile_buffer.Y] == tile[last_tile_setted_x][last_tile_setted_y]) counter++;
+            else break;
+        }
+        if (counter == sequence - 1) return TRUE;
+        counter = 0;
+
+        // Diagonal Sequence "/"
+        for (int j = 0; j < (sequence - 1); j++)
+        {
+            horizontal_constant_value = (sequence - 1) - i - j;
+            vertical_constant_value   = (sequence - 1) - i - j;
+            
+            tile_buffer.X = last_tile_setted_x - horizontal_constant_value;
+            if (tile_buffer.X >= last_tile_setted_x) tile_buffer.X++;
+            if (tile_buffer.X < 0 || tile_buffer.X > max.X) break;
+            
+            
+            tile_buffer.Y = last_tile_setted_y + vertical_constant_value;
+            if (tile_buffer.Y <= last_tile_setted_y) tile_buffer.Y--;
+            if (tile_buffer.Y < 0 || tile_buffer.Y > max.Y) break;
+
+            // Increment the counter in case the tile analyzed and the last tile setted have the same char
+            if (tile[tile_buffer.X][tile_buffer.Y] == tile[last_tile_setted_x][last_tile_setted_y]) counter++;
+            else break;
+        }
+        if (counter == sequence - 1) return TRUE;
+        counter = 0;
+    }
+
     return FALSE;
+}
+
+void game_over_screen(char winner_char)
+{
+    cursor_visibility(FALSE);
+    WriteConsoleOutputCharacter(console_handle, "                    ", 20, coord(0, CONSOLE_HEIGHT-1), &characters);
+
+    // Draw
+    if (winner_char == DRAW)
+    {
+        char draw_txt[] = "DRAW!";
+        char draw_len = strlen(draw_txt);
+        WriteConsoleOutputCharacter(console_handle, draw_txt, draw_len, coord((CONSOLE_WIDTH - draw_len) / 2, CONSOLE_HEIGHT-1), &characters);
+    }
+    // Have a winner
+    else
+    {
+        char winner_txt[] = "PLAYER ? WON!";
+        winner_txt[7] = winner_char;
+        char winner_len = strlen(winner_txt);
+        WriteConsoleOutputCharacter(console_handle, winner_txt, winner_len, coord((CONSOLE_WIDTH - winner_len) / 2, CONSOLE_HEIGHT-1), &characters);
+    }
+
+    get_user_input();
+    clear_screen();
 }
