@@ -517,22 +517,25 @@ void draw_customize_game(char arrow)
         WriteConsoleOutputCharacter(console_handle, game_custom_txt[i], game_custom_len[i], coord(arrow_len[is_arrow_in_this_line], i), &characters);
         // Draw the number
         len_already_written = arrow_len[is_arrow_in_this_line] + game_custom_len[GAME_PLAYERS] + 1;
-        WriteConsoleOutputCharacter(console_handle, "<", 1, coord(len_already_written, i), &characters);
+        if (game_variable[i] > game_variable_min[i]) WriteConsoleOutputCharacter(console_handle, "<", 1, coord(len_already_written, i), &characters);
+        else                                         WriteConsoleOutputCharacter(console_handle, " ", 1, coord(len_already_written, i), &characters);
         char number[10] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
         if (game_variable[i] > 9)
         {
-            char variable_txt[3] = "  ";
+            char variable_txt[] = "??";
             variable_txt[0] = number[game_variable[i]/10];
             variable_txt[1] = number[game_variable[i]%10];
-            WriteConsoleOutputCharacter(console_handle, variable_txt, 2, coord(len_already_written + 1, i), &characters);
-            WriteConsoleOutputCharacter(console_handle, ">", 1, coord(len_already_written + 3, i), &characters);
+            WriteConsoleOutputCharacter(console_handle, variable_txt, 2, coord(len_already_written + 2, i), &characters);
+            if (game_variable[i] < game_variable_max[i]) WriteConsoleOutputCharacter(console_handle, ">", 1, coord(len_already_written + 4, i), &characters);
+            else                                         WriteConsoleOutputCharacter(console_handle, " ", 1, coord(len_already_written + 4, i), &characters);
         }
         else
         {
-            char variable_txt[2] = " ";
+            char variable_txt[] = "?";
             variable_txt[0] = number[game_variable[i]];
-            WriteConsoleOutputCharacter(console_handle, variable_txt, 1, coord(len_already_written + 1, i), &characters);
-            WriteConsoleOutputCharacter(console_handle, "> ", 2, coord(len_already_written + 2, i), &characters);
+            WriteConsoleOutputCharacter(console_handle, variable_txt, 1, coord(len_already_written + 2, i), &characters);
+            if (game_variable[i] < game_variable_max[i]) WriteConsoleOutputCharacter(console_handle, " >", 2, coord(len_already_written + 3, i), &characters);
+            else                                         WriteConsoleOutputCharacter(console_handle, "  ", 2, coord(len_already_written + 3, i), &characters);
         }
     }
 
