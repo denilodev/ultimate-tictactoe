@@ -8,29 +8,30 @@
 #define DOWN        's'
 #define LEFT        'a'
 #define RIGHT       'd'
-#define SELECT      ' '
-#define QUIT        'q'
+#define SELECT      '\r'    // Enter key
+#define QUIT        '\e'    // Esc key
+#define RESET       'r'
 #define coord(c, r) (COORD){c, r}
 
 #define MIN_HEIGHT  3
-#define MAX_HEIGHT  10
+#define MAX_HEIGHT  15
 #define MIN_WIDTH   3
-#define MAX_WIDTH   10
+#define MAX_WIDTH   15
 #define MIN_PLAYERS 2
 #define MAX_PLAYERS 4
 
 #define VOID_CHAR   ' '
 #define PLAYER_1_CHAR 'O'
 #define PLAYER_2_CHAR 'X'
-#define PLAYER_3_CHAR 'A'
+#define PLAYER_3_CHAR 'T'
 #define PLAYER_4_CHAR 'Z'
-#define DRAW        '\0'
+#define DRAW        'D'
 
 // General variables
 char running = TRUE;
 char input;
 char arrow;
-char *arrow_text[2];
+char *arrow_txt[2];
 char arrow_len[2];
 
 // Console managment variables
@@ -42,31 +43,53 @@ CONSOLE_SCREEN_BUFFER_INFO console_info;
 DWORD characters;
 DWORD style;
 const char *space = " ";
-const int CONSOLE_WIDTH = 40;
-const int CONSOLE_HEIGHT = 20;
+const int CONSOLE_WIDTH = 60;
+const int CONSOLE_HEIGHT = 30;
 
 // Scene variables
 enum scene {
     SCENE_MENU,
     SCENE_LOCAL_GAME,
-    SCENE_MULTI_GAME
 };
 enum scene actual_scene = SCENE_MENU;
 
 enum popup {
     POPUP_EXIT_PROGRAM,
-    POPUP_HOST_OR_CONNECT,
     POPUP_LEFT_GAME,
+    POPUP_RESET_GAME,
 
     POPUP_COUNT
 };
 char *popup_txt[POPUP_COUNT];
 char popup_len[POPUP_COUNT];
 
+char *no_txt;
+char no_len;
+char *yes_txt;
+char yes_len;
+
+char *menu_hint_txt[3];
+char menu_hint_len[3];
+
+char *play_txt;
+char play_len;
+char *back_txt;
+char back_len;
+
+char *customize_game_hint_txt[3];
+char customize_game_hint_len[3];
+
+char *player_turn_txt;
+char player_turn_len;
+
+char *draw_txt;
+char draw_len;
+char *winner_txt[2];
+char winner_len[2];
+
 // Menu variables
 enum menu_options {
     PLAY_LOCAL,
-    PLAY_MULTI,
     EXIT,
 
     OPTIONS_COUNT
@@ -93,8 +116,11 @@ unsigned char game_variable_max[GAME_CUSTOM_COUNT];
 
 const char player_char[MAX_PLAYERS] = {PLAYER_1_CHAR, PLAYER_2_CHAR, PLAYER_3_CHAR, PLAYER_4_CHAR};
 
+const char number[10] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
+
 // Functions
 void resize_console(int, int);
+void clear_line(char);
 void clear_screen();
 void cursor_visibility(int);
 char get_user_input();
@@ -137,19 +163,18 @@ int main()
     // Logic and string variables
     input = 0;
 
-    arrow_text[FALSE] = "   ";
-    arrow_text[TRUE]  = ">> ";
-    arrow_len[FALSE]  = strlen(arrow_text[FALSE]);
-    arrow_len[TRUE]   = strlen(arrow_text[TRUE]);
+    arrow_txt[FALSE] = "   ";
+    arrow_txt[TRUE]  = ">> ";
+    arrow_len[FALSE]  = strlen(arrow_txt[FALSE]);
+    arrow_len[TRUE]   = strlen(arrow_txt[TRUE]);
 
-    option_txt[PLAY_LOCAL] = "Play offline";
-    option_txt[PLAY_MULTI] = "Play online (LAN)";
-    option_txt[EXIT] = "Exit the game";
+    option_txt[PLAY_LOCAL] = "Play";
+    option_txt[EXIT] = "Exit";
     for (int i = 0; i < OPTIONS_COUNT; i++) option_len[i] = strlen(option_txt[i]);
 
     popup_txt[POPUP_EXIT_PROGRAM] = "Sure want to quit?";
-    popup_txt[POPUP_HOST_OR_CONNECT] = "Want to host or connect a game?";
-    popup_txt[POPUP_LEFT_GAME] = "Sure want to left the game?";
+    popup_txt[POPUP_LEFT_GAME] = "Come back to menu?";
+    popup_txt[POPUP_RESET_GAME] = "Sure want to reset the game?";
     for (int i = 0; i < POPUP_COUNT; i++) popup_len[i] = strlen(popup_txt[i]);
 
     game_custom_txt[GAME_WIDTH] = "Width of grid";
@@ -165,6 +190,40 @@ int main()
     game_variable[GAME_PLAYERS] = game_variable_min[GAME_PLAYERS] = MIN_PLAYERS;
     game_variable_max[GAME_PLAYERS] = MAX_PLAYERS;
 
+    no_txt = "No";
+    no_len = strlen(no_txt);
+    yes_txt = "Yes";
+    yes_len = strlen(yes_txt);
+
+    menu_hint_txt[0] = " W and S to navigate through menu";
+    menu_hint_len[0] = strlen(menu_hint_txt[0]);
+    menu_hint_txt[1] = " ENTER to select your option";
+    menu_hint_len[1] = strlen(menu_hint_txt[1]);
+    menu_hint_txt[2] = " ESCAPE to come back or quit";
+    menu_hint_len[2] = strlen(menu_hint_txt[2]);
+
+    play_txt = "Play";
+    play_len = strlen(play_txt);
+    back_txt = "Back";
+    back_len = strlen(back_txt);
+
+    customize_game_hint_txt[0] = " W and S to navigate through the options";
+    customize_game_hint_len[0] = strlen(customize_game_hint_txt[0]);
+    customize_game_hint_txt[1] = " A and D to change values";
+    customize_game_hint_len[1] = strlen(customize_game_hint_txt[1]);
+    customize_game_hint_txt[2] = " Q to come back";
+    customize_game_hint_len[2] = strlen(customize_game_hint_txt[2]);
+
+    player_turn_txt = "Player Turn:";
+    player_turn_len = strlen(player_turn_txt);
+
+    draw_txt = "DRAW!";
+    draw_len = strlen(draw_txt);
+    winner_txt[0] = "PLAYER";
+    winner_txt[1] = "WON!";
+    winner_len[0] = strlen(winner_txt[0]);
+    winner_len[1] = strlen(winner_txt[1]);
+
     // Main loop
     while (running)
     {
@@ -175,48 +234,6 @@ int main()
                 break;
             case SCENE_LOCAL_GAME:
                 game();
-                // Show TTT
-                // TTT logic
-                // If game is over
-                    // Show winner
-                    // Ask if want to replay or go back to MENU
-                        // If replay, re-loop
-                        // If go back
-                            // Set MENU
-                            // Re-loop
-                break;
-            case SCENE_MULTI_GAME:
-                // Ask if host or connect game
-                    // If host
-                        // Build server socket
-                        // Show IP and PORT to connect
-                        // Wait for connection
-                        // If connection
-                            // Show TTT
-                            // TTT logic
-                            // If game is over
-                                // Show winner
-                                // Ask if want to replay or go back to MENU
-                                    // If replay, re-loop
-                                    // If go back
-                                        // Set MENU
-                                        // Re-loop
-                    // If connect
-                        // Build client socket
-                        // Ask for IP Addres to connect
-                        // Ask for PORT to connect
-                        // If connection is not successful
-                            // Show that connection failed and return to ask again the Address and PORT
-                        // If connection is successuful
-                            // Show TTT
-                            // TTT logic
-                            // If game is over
-                                // Show winner
-                                // Ask if want to replay or go back to MENU
-                                    // If replay, re-loop
-                                    // If go back
-                                        // Set MENU
-                                        // Re-loop
                 break;
             default:
                 return 1;
@@ -242,17 +259,22 @@ void resize_console(int width, int height)
     SetConsoleWindowInfo(console_handle, TRUE, &rect);
 }
 
-void clear_screen()
+void clear_line(char line)
 {
     // Make a clear string
     char clean_line[CONSOLE_WIDTH + 1];
     for (int i = 0; i < CONSOLE_WIDTH; i++) clean_line[i] = VOID_CHAR;
     clean_line[CONSOLE_WIDTH] = '\0';
 
+    WriteConsoleOutputCharacter(console_handle, clean_line, CONSOLE_WIDTH, coord(0, line), &characters);
+}
+
+void clear_screen()
+{
     // Apply it in every line of console
     for (int i = 0; i < CONSOLE_HEIGHT; i++)
     {
-        WriteConsoleOutputCharacter(console_handle, clean_line, CONSOLE_WIDTH, coord(0, i), &characters);
+        clear_line(i);
     }
 }
 
@@ -274,112 +296,34 @@ int popup(enum popup question)
 
     int temporary_arrow = FALSE;
 
-    char *no_txt = "No";
-    char no_len = strlen(no_txt);
-    char *yes_txt = "Yes";
-    char yes_len = strlen(yes_txt);
-    char *host_txt = "Host";
-    char host_len = strlen(host_txt);
-    char *connect_txt = "Connect";
-    char connect_len = strlen(connect_txt);
-
-    switch (question)
+    while (TRUE)
     {
-        case POPUP_EXIT_PROGRAM:
-            while (TRUE)
-            {
-                // Print question
-                WriteConsoleOutputCharacter(console_handle, popup_txt[question], popup_len[question], coord(0, 0), &characters);
-                // Print option 0 (no)
-                WriteConsoleOutputCharacter(console_handle, arrow_text[!temporary_arrow], arrow_len[!temporary_arrow], coord(0, 1), &characters);
-                WriteConsoleOutputCharacter(console_handle, no_txt, no_len, coord(arrow_len[temporary_arrow], 1), &characters);
-                // Print option 1 (yes)
-                WriteConsoleOutputCharacter(console_handle, arrow_text[temporary_arrow], arrow_len[temporary_arrow], coord(0, 2), &characters);
-                WriteConsoleOutputCharacter(console_handle, yes_txt, yes_len, coord(arrow_len[temporary_arrow], 2), &characters);
-                // Input logic
-                input = get_user_input();
-                switch (input)
+        // Print question
+        WriteConsoleOutputCharacter(console_handle, popup_txt[question], popup_len[question], coord(0, 0), &characters);
+        // Print option 0 (no)
+        WriteConsoleOutputCharacter(console_handle, arrow_txt[!temporary_arrow], arrow_len[!temporary_arrow], coord(0, 1), &characters);
+        WriteConsoleOutputCharacter(console_handle, no_txt, no_len, coord(arrow_len[temporary_arrow], 1), &characters);
+        // Print option 1 (yes)
+        WriteConsoleOutputCharacter(console_handle, arrow_txt[temporary_arrow], arrow_len[temporary_arrow], coord(0, 2), &characters);
+        WriteConsoleOutputCharacter(console_handle, yes_txt, yes_len, coord(arrow_len[temporary_arrow], 2), &characters);
+        // Input logic
+        input = get_user_input();
+        switch (input)
+        {
+            case UP:
+            case DOWN:
+                temporary_arrow = !temporary_arrow;
+                break;
+            case SELECT:
+                if (temporary_arrow == TRUE)
                 {
-                    case UP:
-                    case DOWN:
-                        temporary_arrow = !temporary_arrow;
-                        break;
-                    case SELECT:
-                        if (temporary_arrow == TRUE)
-                        {
-                            clear_screen();
-                            return TRUE;
-                        }
-                    case QUIT:
-                        clear_screen();
-                        return FALSE;
-                } 
-            }
-
-        case POPUP_HOST_OR_CONNECT:
-            while (TRUE)
-            {
-                // Print question
-                WriteConsoleOutputCharacter(console_handle, popup_txt[question], popup_len[question], coord(0, 0), &characters);
-                // Print option 0 (no)
-                WriteConsoleOutputCharacter(console_handle, arrow_text[!temporary_arrow], arrow_len[!temporary_arrow], coord(0, 1), &characters);
-                WriteConsoleOutputCharacter(console_handle, connect_txt, connect_len, coord(arrow_len[temporary_arrow], 1), &characters);
-                // Print option 1 (yes)
-                WriteConsoleOutputCharacter(console_handle, arrow_text[temporary_arrow], arrow_len[temporary_arrow], coord(0, 2), &characters);
-                WriteConsoleOutputCharacter(console_handle, host_txt, host_len, coord(arrow_len[temporary_arrow], 2), &characters);
-                // Input logic
-                input = get_user_input();
-                switch (input)
-                {
-                    case UP:
-                    case DOWN:
-                        temporary_arrow = !temporary_arrow;
-                        break;
-                    case SELECT:
-                        if (temporary_arrow == TRUE)
-                        {
-                            clear_screen();
-                            return TRUE;
-                        }
-                    case QUIT:
-                        clear_screen();
-                        return FALSE;
+                    clear_screen();
+                    return TRUE;
                 }
-            }
-
-        case POPUP_LEFT_GAME:
-            while (TRUE)
-            {
-                // Print question
-                WriteConsoleOutputCharacter(console_handle, popup_txt[question], popup_len[question], coord(0, 0), &characters);
-                // Print option 0 (no)
-                WriteConsoleOutputCharacter(console_handle, arrow_text[!temporary_arrow], arrow_len[!temporary_arrow], coord(0, 1), &characters);
-                WriteConsoleOutputCharacter(console_handle, no_txt, no_len, coord(arrow_len[temporary_arrow], 1), &characters);
-                // Print option 1 (yes)
-                WriteConsoleOutputCharacter(console_handle, arrow_text[temporary_arrow], arrow_len[temporary_arrow], coord(0, 2), &characters);
-                WriteConsoleOutputCharacter(console_handle, yes_txt, yes_len, coord(arrow_len[temporary_arrow], 2), &characters);
-                // Input logic
-                input = get_user_input();
-                switch (input)
-                {
-                    case UP:
-                    case DOWN:
-                        temporary_arrow = !temporary_arrow;
-                        break;
-                     case SELECT:
-                         if (temporary_arrow == TRUE)
-                        {
-                            clear_screen();
-                            return TRUE;
-                        }
-                     case QUIT:
-                        clear_screen();
-                        return FALSE;
-                }
-            }
-
-        default:
-            return -1;
+            case QUIT:
+                clear_screen();
+                return FALSE;
+        }
     }
 }
 
@@ -405,11 +349,6 @@ void menu()
                     clear_screen();
                     if (customize_game()) actual_scene = SCENE_LOCAL_GAME;
                     break;
-                case PLAY_MULTI:
-                    popup(POPUP_HOST_OR_CONNECT);
-                    // clear_screen();
-                    // actual_scene = SCENE_MULTI_GAME;
-                    break;
                 case EXIT:
                     // If answer is Yes, close the program
                     if (popup(POPUP_EXIT_PROGRAM)) running = FALSE;
@@ -417,7 +356,7 @@ void menu()
             }
             break;
         case QUIT:
-            if (popup(POPUP_EXIT_PROGRAM)) running = FALSE;
+            running = FALSE;
             break;
     }   
 }
@@ -432,22 +371,16 @@ void draw_menu()
         // Check if the arrow is in this line
         is_arrow_in_this_line = (i == arrow);
         // Draw the arrow or it's absence
-        WriteConsoleOutputCharacter(console_handle, arrow_text[is_arrow_in_this_line], arrow_len[is_arrow_in_this_line], coord(0, i), &characters);
+        WriteConsoleOutputCharacter(console_handle, arrow_txt[is_arrow_in_this_line], arrow_len[is_arrow_in_this_line], coord(0, i), &characters);
         // Draw the actual menu line
         WriteConsoleOutputCharacter(console_handle, option_txt[i], option_len[i], coord(arrow_len[is_arrow_in_this_line], i), &characters);
         // Clear rest of the line
         len_already_written = arrow_len[is_arrow_in_this_line] + option_len[i];
         for (int j = len_already_written; j < CONSOLE_WIDTH; j++) WriteConsoleOutputCharacter(console_handle, space, 1, coord(j, i), &characters);
     }
-    char *hint_1 = " W and S to navigate through menu";
-    char hint_1_len = strlen(hint_1);
-    char *hint_2 = " SPACE to select your option";
-    char hint_2_len = strlen(hint_2);
-    char *hint_3 = " Q to come back or quit";
-    char hint_3_len = strlen(hint_3);
-    WriteConsoleOutputCharacter(console_handle, hint_1, hint_1_len, coord(0, CONSOLE_HEIGHT-4), &characters);
-    WriteConsoleOutputCharacter(console_handle, hint_2, hint_2_len, coord(0, CONSOLE_HEIGHT-3), &characters);
-    WriteConsoleOutputCharacter(console_handle, hint_3, hint_3_len, coord(0, CONSOLE_HEIGHT-2), &characters);
+    WriteConsoleOutputCharacter(console_handle, menu_hint_txt[0], menu_hint_len[0], coord(0, CONSOLE_HEIGHT-4), &characters);
+    WriteConsoleOutputCharacter(console_handle, menu_hint_txt[1], menu_hint_len[1], coord(0, CONSOLE_HEIGHT-3), &characters);
+    WriteConsoleOutputCharacter(console_handle, menu_hint_txt[2], menu_hint_len[2], coord(0, CONSOLE_HEIGHT-2), &characters);
 }
 
 int customize_game()
@@ -512,14 +445,13 @@ void draw_customize_game(char arrow)
         // Check if the arrow is in this line
         is_arrow_in_this_line = (i == arrow);
         // Draw the arrow or it's absence
-        WriteConsoleOutputCharacter(console_handle, arrow_text[is_arrow_in_this_line], arrow_len[is_arrow_in_this_line], coord(0, i), &characters);
+        WriteConsoleOutputCharacter(console_handle, arrow_txt[is_arrow_in_this_line], arrow_len[is_arrow_in_this_line], coord(0, i), &characters);
         // Draw the custom game line
         WriteConsoleOutputCharacter(console_handle, game_custom_txt[i], game_custom_len[i], coord(arrow_len[is_arrow_in_this_line], i), &characters);
         // Draw the number
         len_already_written = arrow_len[is_arrow_in_this_line] + game_custom_len[GAME_PLAYERS] + 1;
         if (game_variable[i] > game_variable_min[i]) WriteConsoleOutputCharacter(console_handle, "<", 1, coord(len_already_written, i), &characters);
         else                                         WriteConsoleOutputCharacter(console_handle, " ", 1, coord(len_already_written, i), &characters);
-        char number[10] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
         if (game_variable[i] > 9)
         {
             char variable_txt[] = "??";
@@ -544,21 +476,15 @@ void draw_customize_game(char arrow)
         // Check if the arrow is in this line
         is_arrow_in_this_line = (i == arrow + 1);
         // Draw the arrow or it's absence
-        WriteConsoleOutputCharacter(console_handle, arrow_text[is_arrow_in_this_line], arrow_len[is_arrow_in_this_line], coord(0, i), &characters);
+        WriteConsoleOutputCharacter(console_handle, arrow_txt[is_arrow_in_this_line], arrow_len[is_arrow_in_this_line], coord(0, i), &characters);
         // Draw the line
-        if (i == GAME_CUSTOM_COUNT + 1) WriteConsoleOutputCharacter(console_handle, "Play", 4, coord(arrow_len[is_arrow_in_this_line], i), &characters);
-        else                            WriteConsoleOutputCharacter(console_handle, "Back", 4, coord(arrow_len[is_arrow_in_this_line], i), &characters);
+        if (i == GAME_CUSTOM_COUNT + 1) WriteConsoleOutputCharacter(console_handle, play_txt, play_len, coord(arrow_len[is_arrow_in_this_line], i), &characters);
+        else                            WriteConsoleOutputCharacter(console_handle, back_txt, back_len, coord(arrow_len[is_arrow_in_this_line], i), &characters);
     }
 
-    char *hint_1 = " W and S to navigate through the options";
-    char hint_1_len = strlen(hint_1);
-    char *hint_2 = " A and D to change values";
-    char hint_2_len = strlen(hint_2);
-    char *hint_3 = " Q to come back";
-    char hint_3_len = strlen(hint_3);
-    WriteConsoleOutputCharacter(console_handle, hint_1, hint_1_len, coord(0, CONSOLE_HEIGHT-4), &characters);
-    WriteConsoleOutputCharacter(console_handle, hint_2, hint_2_len, coord(0, CONSOLE_HEIGHT-3), &characters);
-    WriteConsoleOutputCharacter(console_handle, hint_3, hint_3_len, coord(0, CONSOLE_HEIGHT-2), &characters);
+    WriteConsoleOutputCharacter(console_handle, customize_game_hint_txt[0], customize_game_hint_len[0], coord(0, CONSOLE_HEIGHT-4), &characters);
+    WriteConsoleOutputCharacter(console_handle, customize_game_hint_txt[1], customize_game_hint_len[1], coord(0, CONSOLE_HEIGHT-3), &characters);
+    WriteConsoleOutputCharacter(console_handle, customize_game_hint_txt[2], customize_game_hint_len[2], coord(0, CONSOLE_HEIGHT-2), &characters);
 }
 
 void game()
@@ -586,11 +512,11 @@ void game()
 
     cursor_visibility(TRUE);
     
-    draw_game(grid_width_total_count, grid_height_total_count, player_turn);
-
+    
     SetConsoleCursorPosition(console_handle, coord(1, 0));
-    while (actual_scene == SCENE_LOCAL_GAME || actual_scene == SCENE_MULTI_GAME)
+    while (actual_scene == SCENE_LOCAL_GAME)
     {
+        draw_game(grid_width_total_count, grid_height_total_count, player_turn);
         input = get_user_input();
         switch (input)
         {
@@ -613,16 +539,16 @@ void game()
                     // Check if someone won
                     if (check_game_over(tile_selected.X, tile_selected.Y))
                     {
+                        draw_game(grid_width_total_count, grid_height_total_count, player_turn);
                         game_over_screen(player_char[player_turn]);
-                        actual_scene = SCENE_MENU;
                         return;
                     }
                     // Check if is draw
                     tiles_occupied++;
                     if (tiles_occupied == grid_total_size)
                     {
+                        draw_game(grid_width_total_count, grid_height_total_count, player_turn);
                         game_over_screen(DRAW);
-                        actual_scene = SCENE_MENU;
                         return;
                     }
                     // Change the turn owner
@@ -632,6 +558,15 @@ void game()
                     draw_game(grid_width_total_count, grid_height_total_count, player_turn);
                 }
                 break;
+            case RESET:
+                cursor_visibility(FALSE);
+                if (popup(POPUP_RESET_GAME))
+                {
+                    // Reset
+                    return;
+                }
+                cursor_visibility(TRUE);
+                break;
             case QUIT:
                 cursor_visibility(FALSE);
                 if (popup(POPUP_LEFT_GAME))
@@ -640,8 +575,6 @@ void game()
                     actual_scene = SCENE_MENU;
                     return;
                 }
-                // Need to redraw the game, once the popup clear everything
-                draw_game(grid_width_total_count, grid_height_total_count, player_turn);
                 cursor_visibility(TRUE);
             }
             int x = (tile_selected.X * 4) + 1;
@@ -694,10 +627,11 @@ void draw_game(int grid_width, int grid_height, char player_turn)
         }
     }
 
-    char player_turn_txt[15] = "Player Turn: ?";
-    player_turn_txt[13] = player_char[player_turn];
-    char player_turn_len = strlen(player_turn_txt);
+    
     WriteConsoleOutputCharacter(console_handle, player_turn_txt, player_turn_len, coord(0, CONSOLE_HEIGHT-1), &characters);
+    char player[] = " ? ";
+    player[1] = player_char[player_turn];
+    WriteConsoleOutputCharacter(console_handle, player, 3, coord(player_turn_len, CONSOLE_HEIGHT-1), &characters);
 }
 
 char check_game_over(char last_tile_setted_x, char last_tile_setted_y)
@@ -794,25 +728,26 @@ char check_game_over(char last_tile_setted_x, char last_tile_setted_y)
 
 void game_over_screen(char winner_char)
 {
-    cursor_visibility(FALSE);
-    WriteConsoleOutputCharacter(console_handle, "                    ", 20, coord(0, CONSOLE_HEIGHT-1), &characters);
+    clear_line(CONSOLE_HEIGHT-1);
 
     // Draw
     if (winner_char == DRAW)
     {
-        char draw_txt[] = "DRAW!";
-        char draw_len = strlen(draw_txt);
         WriteConsoleOutputCharacter(console_handle, draw_txt, draw_len, coord((CONSOLE_WIDTH - draw_len) / 2, CONSOLE_HEIGHT-1), &characters);
     }
     // Have a winner
     else
     {
-        char winner_txt[] = "PLAYER ? WON!";
-        winner_txt[7] = winner_char;
-        char winner_len = strlen(winner_txt);
-        WriteConsoleOutputCharacter(console_handle, winner_txt, winner_len, coord((CONSOLE_WIDTH - winner_len) / 2, CONSOLE_HEIGHT-1), &characters);
+        char entire_lenght = winner_len[0] + 3 + winner_len[1];
+        char winner_txt_x[2] = { ((CONSOLE_WIDTH - entire_lenght) / 2), ((CONSOLE_WIDTH - entire_lenght) / 2)};
+        WriteConsoleOutputCharacter(console_handle, winner_txt[0], winner_len[0], coord(0, CONSOLE_HEIGHT-1), &characters);
+        char player[] = " ? ";
+        player[1] = winner_char;
+        WriteConsoleOutputCharacter(console_handle, player, 3, coord(winner_len[0], CONSOLE_HEIGHT-1), &characters);
+        WriteConsoleOutputCharacter(console_handle, winner_txt[1], winner_len[1], coord(winner_len[0] + 3, CONSOLE_HEIGHT-1), &characters);
     }
 
     get_user_input();
+    cursor_visibility(FALSE);
     clear_screen();
 }
